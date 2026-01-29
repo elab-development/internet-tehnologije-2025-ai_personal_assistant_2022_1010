@@ -1,0 +1,203 @@
+You are building a FULL-STACK application FROM SCRATCH called:
+
+Personal Knowledge Base AI Assistant
+
+TECH STACK:
+- Backend: Python, FastAPI
+- Frontend: HTML, CSS, Vanilla JavaScript
+- Database: SQLite (SQLAlchemy)
+- Vector Store: FAISS
+- LLM: Ollama (local)
+- Authentication: JWT-based authentication with password hashing
+
+====================================================
+CORE GOAL
+====================================================
+Build a 100% local, multi-user Personal Knowledge Base AI Assistant that allows authenticated users to upload documents, index them as vectors, and query them using Retrieval-Augmented Generation (RAG) with a local Ollama LLM.
+
+The system must support authentication, user profiles, and role-based access control.
+
+====================================================
+USER ROLES (ONLY 3)
+====================================================
+
+1. ADMIN
+2. NORMAL USER
+3. Guest
+
+----------------------------------------------------
+PRE-CREATED ADMIN USER (MANDATORY)
+----------------------------------------------------
+Create this admin user automatically on first startup:
+
+- Username: admin
+- Password: admin123
+- Role: ADMIN
+
+Password MUST be securely hashed.
+
+====================================================
+AUTHENTICATION & PROFILES
+====================================================
+
+Implement full authentication:
+
+- Register (create profile)
+- Login
+- Logout
+- JWT-based session handling
+
+Each user profile must include:
+- id
+- username
+- email
+- password_hash
+- role
+- created_at
+
+----------------------------------------------------
+AUTHORIZATION RULES
+----------------------------------------------------
+
+ADMIN:
+- View all users
+- Change user roles
+- Delete users (except self)
+- View and manage all documents
+- Rebuild FAISS index
+- Query across all documents
+
+NORMAL USER:
+- Manage their own profile
+- Upload documents
+- View ONLY their own documents
+- Query ONLY their own indexed data
+- Manage tags on their documents
+
+====================================================
+APPLICATION FEATURES (PKB)
+====================================================
+
+DOCUMENT MANAGEMENT
+- Upload PDF / TXT / Markdown files
+- Extract text
+- Chunk text (configurable size & overlap)
+- Generate embeddings
+- Store vectors in FAISS
+- Store metadata in SQLite
+- Each document MUST be linked to its owner (user_id)
+
+SEMANTIC SEARCH
+- Role-aware search
+- Users search only their own data
+- Admin searches across all data
+
+RAG QUESTION ANSWERING
+- Retrieve top-k relevant chunks
+- Augment prompts with retrieved context
+- Generate answers using Ollama
+- Return answers with source citations
+
+TAGGING SYSTEM
+- User-specific document tags
+- Admin can view all tags
+
+====================================================
+BACKEND ARCHITECTURE (STRICT)
+====================================================
+
+Follow a clean, class-based structure:
+
+models/
+- User
+- Document
+- Chunk
+- Tag
+
+services/
+- AuthService
+- UserService
+- DocumentService
+- IndexService
+- RAGService
+
+core/
+- security.py (JWT, hashing)
+- config.py (environment variables)
+- dependencies.py (role-based guards)
+
+root files:
+- main.py (FastAPI app & routes)
+- db.py (SQLAlchemy setup)
+- indexer.py (extract, chunk, embed, FAISS)
+- rag.py (retrieve + generate)
+- llm_client.py (Ollama HTTP client)
+
+====================================================
+API ENDPOINTS
+====================================================
+
+AUTH:
+- POST /api/auth/register
+- POST /api/auth/login
+- POST /api/auth/logout
+
+USERS (ADMIN ONLY):
+- GET /api/users
+- PATCH /api/users/{id}/role
+- DELETE /api/users/{id}
+
+DOCUMENTS:
+- POST /api/upload
+- GET /api/documents
+- GET /api/documents/{id}
+- DELETE /api/documents/{id}
+- POST /api/documents/{id}/reindex
+
+SEARCH & QUERY:
+- GET /api/search
+- POST /api/query
+
+SYSTEM:
+- GET /api/status
+- GET /api/ollama/status
+- POST /api/index/rebuild (ADMIN ONLY)
+
+====================================================
+FRONTEND REQUIREMENTS
+====================================================
+
+- Authentication pages (login & register)
+- User profile page
+- Role-based UI rendering
+- Admin dashboard (user & document management)
+- Document upload & management UI
+- Chat interface for RAG Q&A
+- Semantic search UI
+
+====================================================
+ENVIRONMENT VARIABLES
+====================================================
+
+- OLLAMA_HOST (default: http://localhost:11434)
+- OLLAMA_MODEL (default: llama3.2:latest)
+- DATABASE_PATH (data/pkb.db)
+- UPLOAD_DIR (uploads/)
+- CHUNK_SIZE (1000)
+- CHUNK_OVERLAP (200)
+
+====================================================
+CRITICAL RULES
+====================================================
+
+- Everything must run locally
+- No cloud APIs
+- Secure all routes with JWT
+- Enforce role-based access everywhere
+- Clean, readable, commented code
+- App must run with:
+  uvicorn main:app --host 0.0.0.0 --port 5000
+
+====================================================
+FINAL OUTPUT EXPECTATION
+==============...

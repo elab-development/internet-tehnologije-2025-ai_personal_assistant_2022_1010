@@ -1,6 +1,7 @@
 import type { Express, Request, Response } from "express";
 import type { Server } from "http";
 import { spawn } from "child_process";
+import { createProxyMiddleware } from "http-proxy-middleware";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -20,7 +21,15 @@ export async function registerRoutes(
   // Wait for Python to start
   await new Promise(resolve => setTimeout(resolve, 3000));
   
-  // Proxy API requests to Python backend using fetch
+  // Use http-proxy-middleware for file uploads (multipart) - must come BEFORE body parsers
+  // This proxies the raw request without parsing
+  app.use("/api/upload", createProxyMiddleware({
+    target: "http://127.0.0.1:8000",
+    changeOrigin: true,
+    pathRewrite: () => "/api/upload", // Ensure path is preserved
+  }));
+  
+  // For other API routes, use a simple proxy that handles JSON
   app.use("/api", async (req: Request, res: Response) => {
     try {
       const url = `http://127.0.0.1:8000${req.originalUrl}`;
@@ -39,8 +48,8 @@ export async function registerRoutes(
         headers,
       };
 
-      // Add body for non-GET requests
-      if (req.method !== 'GET' && req.method !== 'HEAD' && req.body) {
+      // Add body for non-GET requests (JSON body)
+      if (req.method !== 'GET' && req.method !== 'HEAD' && req.body && Object.keys(req.body).length > 0) {
         options.body = JSON.stringify(req.body);
       }
 

@@ -45,10 +45,21 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
+        role: str = payload.get("role", "user")
         if username is None:
             raise credentials_exception
     except JWTError:
         raise credentials_exception
+    
+    # Handle guest users - they're not in the database
+    if username == "guest" and role == "guest":
+        # Create a fake user object for guest
+        guest_user = models.User()
+        guest_user.id = 0
+        guest_user.username = "guest"
+        guest_user.role = "guest"
+        return guest_user
+    
     user = db.query(models.User).filter(models.User.username == username).first()
     if user is None:
         raise credentials_exception

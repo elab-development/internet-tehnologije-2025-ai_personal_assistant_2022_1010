@@ -50,6 +50,27 @@ export function useAuth() {
     },
   });
 
+  const guestMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/auth/guest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      
+      if (!res.ok) {
+        throw new Error("Guest login failed");
+      }
+      
+      const data = await res.json();
+      localStorage.setItem("token", data.access_token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+      return data;
+    },
+    onSuccess: () => {
+      setLocation("/dashboard");
+    },
+  });
+
   const logout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
@@ -70,6 +91,7 @@ export function useAuth() {
   return {
     login: loginMutation,
     register: registerMutation,
+    guest: guestMutation,
     logout,
     user,
     isAuthenticated,

@@ -3,13 +3,13 @@ import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Link } from "wouter";
-import { Brain, ArrowRight, Loader2 } from "lucide-react";
+import { Brain, ArrowRight, Loader2, User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const { login } = useAuth();
+  const { login, guest } = useAuth();
   const { toast } = useToast();
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -88,6 +88,36 @@ export default function LoginPage() {
               )}
             </Button>
           </form>
+
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-card px-2 text-muted-foreground">Or</span>
+            </div>
+          </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full h-12 text-base font-semibold"
+            onClick={() => guest.mutate()}
+            disabled={guest.isPending}
+            data-testid="button-guest-login"
+          >
+            {guest.isPending ? (
+              <>
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                Entering as Guest...
+              </>
+            ) : (
+              <>
+                <User className="mr-2 h-5 w-5" />
+                Continue as Guest
+              </>
+            )}
+          </Button>
 
           <div className="mt-6 text-center">
             <p className="text-muted-foreground">

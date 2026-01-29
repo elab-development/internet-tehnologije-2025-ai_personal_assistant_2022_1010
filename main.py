@@ -80,6 +80,12 @@ def login(user: UserCreate, db: Session = Depends(database.get_db)):
     access_token = auth.create_access_token(data={"sub": db_user.username, "role": db_user.role})
     return {"access_token": access_token, "token_type": "bearer", "user": {"username": db_user.username, "role": db_user.role}}
 
+@app.post("/api/auth/guest", response_model=Token)
+def guest_login():
+    """Create a guest session - no password required, limited access"""
+    access_token = auth.create_access_token(data={"sub": "guest", "role": "guest"})
+    return {"access_token": access_token, "token_type": "bearer", "user": {"username": "guest", "role": "guest"}}
+
 @app.get("/api/documents")
 def get_documents(current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(database.get_db)):
     if current_user.role == "admin":

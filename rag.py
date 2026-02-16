@@ -1,80 +1,132 @@
-import faiss
-import numpy as np
-import requests
-import json
 import os
+import requests
+import numpy as np
+import faiss
 
-# Configuration
-OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
-MODEL_NAME = "llama2" # Or whatever is installed
-EMBEDDING_MODEL = "nomic-embed-text" # Or llama2
+OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
+MODEL_NAME = "llama3.1:8b"
 
-# In-memory FAISS index (simplification for MVP)
-# In production, save/load from disk
 index = None
-documents_map = {} # id -> content mapping
+documents_map = {}  # faiss_idx -> {id, content, is_guest, session_id}
 
 def get_embedding(text: str):
     try:
-        response = requests.post(f"{OLLAMA_HOST}/api/embeddings", json={
-            "model": MODEL_NAME, # Using main model for embeddings if specialized one not available
+        resp = requests.post(f"{OLLAMA_HOST}/api/embeddings", json={
+            "model": MODEL_NAME,
             "prompt": text
         })
-        if response.status_code == 200:
-            return response.json().get("embedding")
-        # Fallback/Error handling
-        print(f"Embedding error: {response.text}")
-        return [0.0] * 4096 # Dummy dimension
+        data = resp.json()
+        emb = data.get("embedding")
+        if emb is None:
+            print(f"⚠️  No embedding returned: {data}")
+            return [0.0] * 4096
+        return emb
     except Exception as e:
-        print(f"Ollama connection error: {e}")
+        print(f"❌ Embedding error: {e}")
         return [0.0] * 4096
 
-def add_document_to_index(doc_id: int, content: str):
-    global index
+def add_document_to_index(doc_id: int, content: str, is_guest: bool = False, session_id: str = None):
+    """Add document to FAISS index with session tracking"""
+    global index, documents_map
+    
+    if not isinstance(content, str) or not content.strip():
+        print(f"⚠️  Skipping empty content for doc {doc_id}")
+        return
+    
+    print(f"📥 Adding doc {doc_id} to RAG (guest={is_guest}, session={session_id[:8] if session_id else 'None'})")
+    
     embedding = get_embedding(content)
     vector = np.array([embedding], dtype=np.float32)
-    
+
     if index is None:
         dimension = vector.shape[1]
         index = faiss.IndexFlatL2(dimension)
-    
-    index.add(vector)
-    documents_map[index.ntotal - 1] = {"id": doc_id, "content": content}
+        print(f"🆕 Created FAISS index (dim={dimension})")
 
-def query_index(query: str, k: int = 3):
-    global index
+    index.add(vector)
+    faiss_idx = index.ntotal - 1
+    
+    documents_map[faiss_idx] = {
+        "id": doc_id,
+        "content": content,
+        "is_guest": is_guest,
+        "session_id": session_id
+    }
+    
+    print(f"✅ Doc {doc_id} added at index {faiss_idx}. Total docs in RAG: {index.ntotal}")
+
+def query_index(query: str, k: int = 5):
+    """Query FAISS index"""
+    global index, documents_map
+    
     if index is None or index.ntotal == 0:
+        print("⚠️  RAG index is empty")
         return []
+
+    print(f"🔍 Querying RAG: '{query}' (k={k})")
     
     embedding = get_embedding(query)
     vector = np.array([embedding], dtype=np.float32)
-    distances, indices = index.search(vector, k)
     
+    k = min(k, index.ntotal)
+    distances, indices = index.search(vector, k)
+
     results = []
-    for idx in indices[0]:
+    for idx, distance in zip(indices[0], distances[0]):
         if idx != -1 and idx in documents_map:
-            results.append(documents_map[idx])
+            doc = documents_map[idx].copy()
+            doc['distance'] = float(distance)
+            results.append(doc)
+    
+    print(f"✅ Found {len(results)} results")
     return results
 
+def remove_document_from_index(doc_id: int):
+    """Remove document from RAG index"""
+    global documents_map
+    
+    keys_to_remove = [k for k, v in documents_map.items() if v.get('id') == doc_id]
+    
+    for key in keys_to_remove:
+        del documents_map[key]
+        print(f"🗑️  Removed doc {doc_id} from RAG (index {key})")
+    
+    if not keys_to_remove:
+        print(f"⚠️  Doc {doc_id} not found in RAG")
+
 def generate_answer(query: str, context: list):
-    context_str = "\n\n".join([item["content"] for item in context])
-    prompt = f"""Use the following pieces of context to answer the question at the end.
+    """Generate answer using Ollama"""
+    if not context:
+        return "I don't have any relevant documents to answer this question."
     
-    Context:
-    {context_str}
+    context_str = "\n\n".join([
+        f"Document {i+1}:\n{item['content'][:1000]}"
+        for i, item in enumerate(context)
+    ])
     
-    Question: {query}
-    
-    Answer:"""
-    
+    prompt = f"""Based on the following documents, please answer the question.
+
+Documents:
+{context_str}
+
+Question: {query}
+
+Answer (provide a helpful response based on the documents above):"""
+
     try:
-        response = requests.post(f"{OLLAMA_HOST}/api/generate", json={
+        resp = requests.post(f"{OLLAMA_HOST}/api/generate", json={
             "model": MODEL_NAME,
             "prompt": prompt,
             "stream": False
         })
-        if response.status_code == 200:
-            return response.json().get("response")
-        return "Error generating answer from Ollama."
+        data = resp.json()
+        
+        response_text = data.get("response")
+        if response_text:
+            return response_text
+        
+        print(f"⚠️  Unexpected Ollama response: {data}")
+        return "No response from Ollama."
     except Exception as e:
-        return f"Error connecting to Ollama: {e}"
+        print(f"❌ Ollama error: {e}")
+        return f"Error generating answer: {e}"

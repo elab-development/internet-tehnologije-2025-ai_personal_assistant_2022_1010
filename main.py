@@ -15,6 +15,7 @@ import uuid
 async def lifespan(app: FastAPI):
     db = database.SessionLocal()
     try:
+        # Existing admin logic
         admin = db.query(models.User).filter(models.User.username == "admin").first()
         if not admin:
             hashed_pw = auth.get_password_hash("admin123")
@@ -22,6 +23,11 @@ async def lifespan(app: FastAPI):
             db.add(new_admin)
             db.commit()
             print("✅ Admin user created: admin/admin123")
+
+        # NEW: Sync documents on startup
+        print("🔍 Syncing registered documents...")
+        registered_docs = db.query(models.Document).filter(models.Document.is_guest == False).all()
+        rag.sync_existing_documents(registered_docs)
     finally:
         db.close()
     

@@ -82,18 +82,19 @@ def query_index(query: str, k: int = 5):
     return results
 
 def remove_document_from_index(doc_id: int):
-    """Remove document from RAG index"""
-    global documents_map
+    """Remove document from RAG index mapping"""
+    global documents_map, index
     
+    # Find the FAISS indices associated with this doc_id
     keys_to_remove = [k for k, v in documents_map.items() if v.get('id') == doc_id]
     
     for key in keys_to_remove:
         del documents_map[key]
-        print(f"🗑️  Removed doc {doc_id} from RAG (index {key})")
+        print(f"🗑️  Removed doc {doc_id} from RAG mapping (index {key})")
     
-    if not keys_to_remove:
-        print(f"⚠️  Doc {doc_id} not found in RAG")
-
+    # Note: We don't remove from the physical FAISS 'index' object 
+    # because IndexFlatL2 doesn't support it well. 
+    # Instead, our 'query_index' already filters results using documents_map.
 def generate_answer(query: str, context: list):
     """Generate answer using Ollama"""
     if not context:
@@ -130,3 +131,25 @@ Answer (provide a helpful response based on the documents above):"""
     except Exception as e:
         print(f"❌ Ollama error: {e}")
         return f"Error generating answer: {e}"
+    
+def sync_existing_documents(docs_from_db: list):
+    """Rebuild the RAG index from database records on startup"""
+    global index, documents_map
+    
+    # Clear current state to avoid duplicates if the function is called twice
+    index = None
+    documents_map = {}
+
+    if not docs_from_db:
+        print("ℹ️  No existing documents to sync.")
+        return
+
+    for doc in docs_from_db:
+        # Re-uses your existing add_document_to_index logic
+        add_document_to_index(
+            doc_id=doc.id, 
+            content=doc.content, 
+            is_guest=doc.is_guest, 
+            session_id=doc.session_id
+        )
+    print(f"🔄 RAG Memory Restored: {len(docs_from_db)} documents loaded into FAISS.")

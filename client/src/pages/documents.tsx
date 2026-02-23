@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { LayoutShell } from "@/components/layout-shell";
-import { useDocuments, useUploadDocument } from "@/hooks/use-documents";
+// Added useDeleteDocument to the imports
+import { useDocuments, useUploadDocument, useDeleteDocument } from "@/hooks/use-documents";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,8 +12,7 @@ import {
   Loader2, 
   File, 
   MoreVertical,
-  Trash2,
-  Download
+  Trash2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -25,6 +25,7 @@ import {
 export default function DocumentsPage() {
   const { data: documents, isLoading } = useDocuments();
   const uploadMutation = useUploadDocument();
+  const deleteMutation = useDeleteDocument(); // <--- Initialize the delete hook
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState("");
@@ -45,6 +46,27 @@ export default function DocumentsPage() {
         toast({
           title: "Upload Failed",
           description: "Please try again with a PDF, TXT, or MD file.",
+          variant: "destructive",
+        });
+      },
+    });
+  };
+
+  // --- NEW: Delete Logic ---
+  const handleDelete = (id: number) => {
+    if (!confirm("Are you sure you want to delete this document?")) return;
+
+    deleteMutation.mutate(id, {
+      onSuccess: () => {
+        toast({
+          title: "Document Deleted",
+          description: "The file has been removed from your knowledge base.",
+        });
+      },
+      onError: (error: any) => {
+        toast({
+          title: "Delete Failed",
+          description: error.response?.data?.detail || "Could not remove the document.",
           variant: "destructive",
         });
       },
@@ -133,8 +155,14 @@ export default function DocumentsPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem className="text-destructive focus:text-destructive">
-                          <Trash2 className="mr-2 h-4 w-4" /> Delete
+                        {/* FIXED: Added onClick and disabled state */}
+                        <DropdownMenuItem 
+                          className="text-destructive focus:text-destructive cursor-pointer"
+                          onClick={() => handleDelete(doc.id)}
+                          disabled={deleteMutation.isPending}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" /> 
+                          {deleteMutation.isPending ? "Deleting..." : "Delete"}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>

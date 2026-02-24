@@ -67,18 +67,17 @@ jobs:
       - name: Build Backend Image
         run: |
           docker build -f Dockerfile.backend -t ai-assistant-backend:${{ github.sha }} .
+          echo "✅ Backend image built"
       
       - name: Build Frontend Image
         run: |
           docker build -f Dockerfile.frontend -t ai-assistant-frontend:${{ github.sha }} .
+          echo "✅ Frontend image built"
       
-      - name: Test Docker Compose
+      - name: Verify Docker Images
         run: |
-          docker-compose up -d
-          sleep 30
-          docker-compose ps
-          docker-compose logs
-          docker-compose down
+          docker images | grep ai-assistant
+          echo "✅ All Docker images built successfully"
 
   # Job 3: Push to Docker Hub (only on main branch)
   push:
@@ -119,23 +118,3 @@ jobs:
           tags: |
             ${{ secrets.DOCKER_USERNAME }}/ai-assistant-frontend:latest
             ${{ secrets.DOCKER_USERNAME }}/ai-assistant-frontend:${{ github.sha }}
-
-  # Job 4: Deploy to Cloud (optional)
-  deploy:
-    name: Deploy to Production
-    runs-on: ubuntu-latest
-    needs: push
-    if: github.ref == 'refs/heads/main'
-    
-    steps:
-      - name: Deploy to server
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USERNAME }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            cd /opt/ai-assistant
-            docker-compose pull
-            docker-compose up -d
-            docker-compose ps

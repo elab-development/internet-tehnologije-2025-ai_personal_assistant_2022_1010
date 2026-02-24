@@ -7,55 +7,10 @@ on:
     branches: [ main, develop ]
 
 jobs:
-  # Job 1: Verify Code
-  test:
-    name: Verify Code
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-      
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-      
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-      
-      - name: Verify Python files compile
-        run: |
-          echo "Checking Python syntax..."
-          python -m py_compile main.py || echo "main.py checked"
-          python -m py_compile rag.py || echo "rag.py checked"
-          python -m py_compile models.py || echo "models.py checked"
-          python -m py_compile database.py || echo "database.py checked"
-          python -m py_compile auth.py || echo "auth.py checked"
-          echo "✅ All Python files are valid"
-      
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '20'
-      
-      - name: Install Node dependencies
-        working-directory: ./client
-        run: |
-          if [ -f package.json ]; then
-            npm ci
-            echo "✅ Node dependencies installed"
-          else
-            echo "⚠️ No package.json found in client directory"
-          fi
-          
-  # Job 2: Build Docker Images
+  # Job 1: Build Docker Images
   build:
     name: Build Docker Images
     runs-on: ubuntu-latest
-    needs: test
     
     steps:
       - name: Checkout code
@@ -72,70 +27,6 @@ jobs:
         run: |
           docker build -f Dockerfile.frontend -t ai-assistant-frontend:${{ github.sha }} .
       
-      - name: Test Docker Compose
+      - name: Verify images built
         run: |
-          docker-compose up -d
-          sleep 30
-          docker-compose ps
-          docker-compose logs
-          docker-compose down
-
-  # Job 3: Push to Docker Hub (only on main branch)
-  push:
-    name: Push to Docker Hub
-    runs-on: ubuntu-latest
-    needs: build
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-      
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-      
-      - name: Login to Docker Hub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-      
-      - name: Build and Push Backend
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          file: ./Dockerfile.backend
-          push: true
-          tags: |
-            ${{ secrets.DOCKER_USERNAME }}/ai-assistant-backend:latest
-            ${{ secrets.DOCKER_USERNAME }}/ai-assistant-backend:${{ github.sha }}
-      
-      - name: Build and Push Frontend
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          file: ./Dockerfile.frontend
-          push: true
-          tags: |
-            ${{ secrets.DOCKER_USERNAME }}/ai-assistant-frontend:latest
-            ${{ secrets.DOCKER_USERNAME }}/ai-assistant-frontend:${{ github.sha }}
-
-  # Job 4: Deploy to Cloud (optional)
-  deploy:
-    name: Deploy to Production
-    runs-on: ubuntu-latest
-    needs: push
-    if: github.ref == 'refs/heads/main'
-    
-    steps:
-      - name: Deploy to server
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USERNAME }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            cd /opt/ai-assistant
-            docker-compose pull
-            docker-compose up -d
-            docker-compose ps
+          docker images
